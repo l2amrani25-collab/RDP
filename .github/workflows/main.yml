@@ -4,24 +4,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  secure-rdp:
+  rdp-job:
     runs-on: windows-latest
     timeout-minutes: 3600
 
     steps:
-      - name: Configure Core RDP Settings
+      - name: Enable RDP
         shell: powershell
         run: |
-          # Enable Remote Desktop
           Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 -Force
-
-          # Disable Network Level Authentication
           Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Value 0 -Force
-          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "SecurityLayer" -Value 0 -Force
-
-          # Open firewall port 3389
-          netsh advfirewall firewall delete rule name="RDP-Tailscale" | Out-Null
-          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
-
-          # Restart RDP service
           Restart-Service -Name TermService -Force
+
+      - name: Create RDP User
+        shell: powershell
+        run: |
+          $password = "P@ssw0rd123!"
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+
+          New-LocalUser -Name "rdpuser" -Password $secure -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
+
+          Write-Host "=============================="
+          Write-Host "USERNAME: rdpuser"
+          Write-Host "PASSWORD: P@ssw0rd123!"
+          Write-Host "=============================="
+
+      - name: Open RDP Port
+        shell: powershell
+        run: |
+          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+
+      - name: Keep Runner Alive
+        shell: powershell
+        run: |
+          Write-Host "RDP is running..."
+          while ($true) {
+            Start-Sleep -Seconds 300
+          }
