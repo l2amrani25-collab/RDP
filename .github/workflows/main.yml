@@ -1,4 +1,4 @@
-name: RDP
+name: RDP with Tailscale
 
 on:
   workflow_dispatch:
@@ -13,7 +13,6 @@ jobs:
         shell: powershell
         run: |
           Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 -Force
-          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Value 0 -Force
           Restart-Service -Name TermService -Force
 
       - name: Create RDP User
@@ -28,18 +27,37 @@ jobs:
 
           Write-Host "=============================="
           Write-Host "USERNAME: rdpuser"
-          Write-Host "PASSWORD: P@ssw0rd123!"
+          Write-Host "PASSWORD: $password"
           Write-Host "=============================="
 
-      - name: Open RDP Port
+      - name: Install Tailscale
         shell: powershell
         run: |
-          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $path = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest $url -OutFile $path
+          Start-Process msiexec.exe -ArgumentList "/i `"$path`" /quiet /norestart" -Wait
+
+      - name: Connect to Tailscale
+        shell: powershell
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-rdp
+
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Show RDP Info
+        shell: powershell
+        run: |
+          Write-Host "===================================="
+          Write-Host "RDP ADDRESS: $env:TAILSCALE_IP"
+          Write-Host "USERNAME: rdpuser"
+          Write-Host "PASSWORD: P@ssw0rd123!"
+          Write-Host "===================================="
 
       - name: Keep Runner Alive
         shell: powershell
         run: |
-          Write-Host "RDP is running..."
           while ($true) {
             Start-Sleep -Seconds 300
           }
