@@ -1,14 +1,17 @@
 name: RDP with Tailscale
 
 on:
-  workflow_dispatch:
-
+  workflow_dispatch:  # Permet de lancer le workflow manuellement à partir de l'interface GitHub
+  
 jobs:
   rdp-job:
     runs-on: windows-latest
-    timeout-minutes: 3600
-
+    timeout-minutes: 60  # Timeout global après 1 heure (en cas de blocage)
+    
     steps:
+      - name: Set up job
+        run: echo "Début du job"
+        
       - name: Enable RDP
         shell: powershell
         run: |
@@ -20,11 +23,9 @@ jobs:
         run: |
           $password = "P@ssw0rd123!"
           $secure = ConvertTo-SecureString $password -AsPlainText -Force
-
           New-LocalUser -Name "rdpuser" -Password $secure -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
-
           Write-Host "=============================="
           Write-Host "USERNAME: rdpuser"
           Write-Host "PASSWORD: $password"
@@ -42,7 +43,6 @@ jobs:
         shell: powershell
         run: |
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-rdp
-
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
@@ -54,10 +54,20 @@ jobs:
           Write-Host "USERNAME: rdpuser"
           Write-Host "PASSWORD: P@ssw0rd123!"
           Write-Host "===================================="
-
+        
       - name: Keep Runner Alive
         shell: powershell
         run: |
+          $timeout = 3600  # Timeout après 1 heure
+          $start = Get-Date
           while ($true) {
-            Start-Sleep -Seconds 300
+              Start-Sleep -Seconds 300  # Attente de 5 minutes
+              Write-Host "Le runner est toujours en vie..."  
+              if ((Get-Date) -gt $start.AddSeconds($timeout)) {
+                  Write-Host "Timeout atteint, arrêt de la boucle."
+                  break
+              }
           }
+
+      - name: Complete job
+        run: echo "Job terminé avec succès"
