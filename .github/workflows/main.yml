@@ -1,4 +1,4 @@
-name: RDP with Tailscale (Minimal)
+name: RDP with Tailscale (Final Stable)
 
 on:
   workflow_dispatch:
@@ -6,42 +6,73 @@ on:
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 10   # limite GitHub
 
     steps:
-      - name: Enable RDP
+      - name: Set up job
+        run: echo "Début du job"
+
+      - name: Enable RDP (SAFE)
         shell: powershell
         run: |
+          Write-Host "Activation RDP sans redémarrage service"
+
           Set-ItemProperty `
             -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
             -Name "fDenyTSConnections" `
             -Value 0 `
             -Force
-          Restart-Service TermService
 
-      - name: Create User
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Write-Host "RDP activé"
+
+      - name: Create RDP User
         shell: powershell
         run: |
-          $pw = ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force
-          New-LocalUser rdpuser -Password $pw
-          Add-LocalGroupMember Administrators rdpuser
-          Add-LocalGroupMember "Remote Desktop Users" rdpuser
+          $password = ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force
+          New-LocalUser -Name "rdpuser" -Password $password -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
+
+          Write-Host "Utilisateur RDP créé"
 
       - name: Install Tailscale
         shell: powershell
         run: |
-          iwr https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi -OutFile ts.msi
-          Start-Process msiexec "/i ts.msi /quiet" -Wait
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $path = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest $url -OutFile $path
+          Start-Process msiexec.exe `
+            -ArgumentList "/i `"$path`" /quiet /norestart" `
+            -Wait
 
-      - name: Connect Tailscale
+          Write-Host "Tailscale installé"
+
+      - name: Connect to Tailscale
         shell: powershell
         run: |
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
+            --hostname=github-rdp
 
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Show Connection Info
+        shell: powershell
+        run: |
+          Write-Host "===================================="
+          Write-Host "RDP ADDRESS (TAILSCALE): $env:TAILSCALE_IP"
+          Write-Host "USERNAME: rdpuser"
+          Write-Host "PASSWORD: P@ssw0rd123!"
+          Write-Host "===================================="
 
       - name: Short wait (anti-kill)
         shell: powershell
         run: |
-          Start-Sleep -Seconds 480   # 8 minutes MAX
+          Write-Host "Fenêtre de connexion RDP (~7 minutes)"
+          Start-Sleep -Seconds 420
+
+      - name: Complete job
+        run: echo "Job terminé"
