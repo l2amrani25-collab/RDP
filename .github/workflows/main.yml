@@ -60,13 +60,7 @@ jobs:
         run: |
           $timeout = 3600  # Timeout après 1 heure
           $start = Get-Date
-          while ($true) {
-              Start-Sleep -Seconds 300  # Attente de 5 minutes
-              Write-Host "Le runner est toujours en vie..."  
-              if ((Get-Date) -gt $start.AddSeconds($timeout)) {
-                  Write-Host "Timeout atteint, arrêt de la boucle."
-                  break
-              }
+         
           }
 
       - name: Complete job
