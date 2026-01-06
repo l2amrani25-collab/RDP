@@ -6,7 +6,7 @@ on:
 jobs:
   rdp-job:
     runs-on: windows-latest
-    timeout-minutes: 10   # ⏱ Timeout global du job (10 minutes)
+    timeout-minutes: 10   # ⏱ Timeout GitHub (10 min)
 
     steps:
       - name: Set up job
@@ -65,10 +65,10 @@ jobs:
           Write-Host "PASSWORD: P@ssw0rd123!"
           Write-Host "===================================="
 
-      - name: Keep Runner Alive (10 minutes)
+      - name: Keep Runner Alive (SAFE 9 minutes)
         shell: powershell
         run: |
-          $timeout = 600   # ⏱ 10 minutes
+          $timeout = 540   # ✅ 9 minutes (SAFE)
           $start = Get-Date
 
           while ((Get-Date) -lt $start.AddSeconds($timeout)) {
@@ -76,7 +76,7 @@ jobs:
             Start-Sleep -Seconds 30
           }
 
-          Write-Host "Fin du temps imparti (10 minutes)"
+          Write-Host "Arrêt propre AVANT timeout GitHub"
 
       - name: Complete job
         run: echo "Job terminé avec succès"
