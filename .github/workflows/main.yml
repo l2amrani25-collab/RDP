@@ -1,21 +1,25 @@
 name: RDP with Tailscale
 
 on:
-  workflow_dispatch:  # Permet de lancer le workflow manuellement à partir de l'interface GitHub
-  
+  workflow_dispatch:
+
 jobs:
   rdp-job:
     runs-on: windows-latest
-    timeout-minutes: 60  # Timeout global après 1 heure (en cas de blocage)
-    
+    timeout-minutes: 10   # ⏱ Timeout global du job (10 minutes)
+
     steps:
       - name: Set up job
         run: echo "Début du job"
-        
+
       - name: Enable RDP
         shell: powershell
         run: |
-          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" `
+            -Value 0 `
+            -Force
           Restart-Service -Name TermService -Force
 
       - name: Create RDP User
@@ -26,6 +30,7 @@ jobs:
           New-LocalUser -Name "rdpuser" -Password $secure -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
+
           Write-Host "=============================="
           Write-Host "USERNAME: rdpuser"
           Write-Host "PASSWORD: $password"
@@ -37,12 +42,17 @@ jobs:
           $url = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
           $path = "$env:TEMP\tailscale.msi"
           Invoke-WebRequest $url -OutFile $path
-          Start-Process msiexec.exe -ArgumentList "/i `"$path`" /quiet /norestart" -Wait
+          Start-Process msiexec.exe `
+            -ArgumentList "/i `"$path`" /quiet /norestart" `
+            -Wait
 
       - name: Connect to Tailscale
         shell: powershell
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-rdp
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
+            --hostname=github-rdp
+
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
@@ -54,14 +64,19 @@ jobs:
           Write-Host "USERNAME: rdpuser"
           Write-Host "PASSWORD: P@ssw0rd123!"
           Write-Host "===================================="
-        
-      - name: Keep Runner Alive
+
+      - name: Keep Runner Alive (10 minutes)
         shell: powershell
         run: |
-          $timeout = 3600  # Timeout après 1 heure
+          $timeout = 600   # ⏱ 10 minutes
           $start = Get-Date
-         
+
+          while ((Get-Date) -lt $start.AddSeconds($timeout)) {
+            Write-Host "Runner actif... $(Get-Date)"
+            Start-Sleep -Seconds 30
           }
+
+          Write-Host "Fin du temps imparti (10 minutes)"
 
       - name: Complete job
         run: echo "Job terminé avec succès"
